@@ -1,0 +1,234 @@
+class Point:  # cria uma classe Point para os pontos do plano para manipulação
+    def __init__(self, x,y):
+        self.x = x
+        self.y = y
+    def dist(p1,p2):  # cria uma função para calcular a distância entre 2 pointos
+        return ((p1.x-p2.x)**2+(p1.y-p2.y)**2)**(0.5)
+    def __repr__(self):  # cria uma função apenas para "formatar" os pontos float
+        return "p(" + "{:.4f}".format(self.x) + "," + "{:.4f}".format(self.y) + ")"
+
+def genPPP(density):  # função para gerar o array de pontos.
+    import numpy
+    qtd_pontos = numpy.random.poisson(density*4)  # quantidade de pontos na área A(-1,1)
+    # Atenção ao significado -- Calculou a quantidade de pontos na área unitária
+    vetx = numpy.random.uniform(-1,1,qtd_pontos)  # propriedade do movimento Browniano em x.
+    vety = numpy.random.uniform(-1,1,qtd_pontos)  # propriedade do movimento Browniano em y.
+    vetpoint = [Point(x,y) for x,y in zip(vetx,vety)]  # cria um vetor de pontos no espaço A.
+    return vetpoint
+
+def moveBrownian(p1,tempo_de_observacao,velocidade_do_ponto):
+    import numpy
+    var = tempo_de_observacao*velocidade_do_ponto
+    p1.x = p1.x+numpy.random.normal(0,var)  #gera o movimento Browniano em x
+    p1.y = p1.y+numpy.random.normal(0,var)  #gera o movimento Browniano em y
+    # procedimento para fazer a reflexão do ponto quando ele sai da área limitada x[-1,1]
+    if p1.x > 1:
+        p1.x = 2-p1.x
+    if p1.x < -1:
+        p1.x = -2-p1.x
+    # procedimento para fazer a reflexão do ponto quando ele sai da área limitada y[-1,1]
+    if p1.y > 1:
+        p1.y = 2-p1.y
+    if p1.y < -1:
+        p1.y = -2-p1.y
+def dist_phisical_models (Model, T_x, R_x, h_t, h_r, freq, zona): # procedimento para os tratamentos de camada física:
+    # Model - Entrada do tipo de Modelo: Okumura-Hata, Ikegami-Valfish e Erceg (0,1,2)
+    # freq - frequência (Limitada a cada entrada do modelo)
+    # T_x - Potência em dBm do transmissor
+    # R_x - Potência em dBm do receptor
+    # h_t - Altura do transmissor
+    # h_r - Altura do receptor
+    # zona - Urbana, Suburbana e Rural (0,1,2)
+
+    # ver notas informativas em; http://www.teleco.com.br/tutoriais/tutorialredes4g/pagina_3.asp
+    import math
+    ah_m = (1.11 * math.log(freq, 10) - 0.7) * h_r - (1.56 * math.log(freq, 10) - 0.8)
+    if Model==0 and zona==0: # Okumura_Hata
+        d=(10**((T_x-R_x-69.55+26.26-math.log(freq,10)+13.82*math.log(h_t,10)+ah_m)/(44.9-6.55*h_t)))
+        return d
+    elif Model==0 and zona==1:
+        print("rever") #verificar a dependência da atenuação urbana
+        d=0
+        return d
+    elif Model==0 and zona==2:
+        print("rever") #verificar a dependência da atenuação urbana
+        d=0
+        return d
+    # Erceg (A,B,C)
+    elif Model==1 and zona==0:
+        print("rever")
+        d=0
+        return d
+    elif Model==1 and zona==1:
+        print("rever")
+        d=0
+        return d
+    elif Model==1 and zona==2:
+        print("rever")
+        d=0
+        return d
+
+def genConnectGraph(antenas,users,reachAU,reachUU):
+    import networkx
+    vet_paresAU = [(ant,us) for ant in antenas for us in users if Point.dist(ant,us) <= reachAU]
+    vet_paresUU = [(us1,us2) for us1 in users for us2 in users if us1 != us2 and Point.dist(us1,us2) <= reachUU]
+    G = networkx.Graph()
+    G.add_nodes_from(antenas)
+    G.add_nodes_from(users)
+    G.add_edges_from(vet_paresAU)
+    G.add_edges_from(vet_paresUU)
+    return G
+
+def list_of_events(pontos_PPP): # cria a superlista para o calculo do tempo de contato
+    print("inserir aqui")
+    
+
+def analyseConnectGraph(G, antenas, users):  # função criada para analisar o Grafo criado
+    import networkx
+    usersinrange = []  # inicializa um vetor nulo para indentificar usuários que estão na cobertura
+    for ant in antenas:
+        usersinrange.extend(G.adj[ant].keys())  # Inserindo a lista de adjacencias, para cada antena.
+    usersinrange = set(usersinrange)# método "set" elimina as redundâncias
+
+    usersD2D = []  # inicializa um vetor nulo para identificar os usuários em situação de D2D
+    for ant in antenas:
+        usersD2D.extend(networkx.dfs_preorder_nodes(G,ant))  # Todos os nós alcançados para cada antena.
+    usersD2D = set(usersD2D)
+    usersD2D -= set(antenas)
+    usersD2D -= set(usersinrange)
+    return (len(usersinrange),len(usersD2D),len(users)-len(usersinrange)-len(usersD2D))
+
+# ----------------------------------------------------------------------------------------------------------------
+# $$ ( PARÂMETROS ) $$
+
+# parametros para a camada física
+frequencia = 300 # em MHz
+zona = 0 # Zonas limitadas pela a frequência
+altura_estacao_radio_base = 100 # em metros
+altura_estacao_movel = 2 # em metros
+potencia_irradiante_do_transmissor = 1 # Watts ou dBm
+potencia_recepcao_do_receptor = -75 #dBm
+
+# mexer no alcance da antena e do alcance d2d rever * d2d
+#------------------------------------------------------------------------------
+lado_regiao_km = 3  # em (km) # lado da região da rede em uma área quadrada
+alcance_antena_km = 0.5  # A) 0.5 [0.2,0.4,0.6,0.8,1.0] raio de alcance da antena em 2GHz [0.5 - 6.0]km
+densidade_antenas_por_km2 = 0.7  # B) 0.4--1.0 [0.1,0.4,0.7,1.0,1.3] # densidade das antenas por área km^2
+densidade_usuarios_por_km2 = 500  # C) 500 [100,250,500,750,1000] densidade dos usuário por m^2
+velocidade_media_km_h = 3  # D) 3 [1,3,5] # velocidade média do usuário
+alcance_d2d_km = 0.05  # E) 0.05 [0.01,0.025,0.05,0.075,0.1] alcance para conectivade d2d entre usuários [0.0 - 0.5]km
+
+intervalo_observacao_s = 1  # intervalo de observação (variancia temporal)s
+tempo_simulacao_s = 300  # segundos
+
+# ----------------------------------------------------------------------------------------------------------------
+# $$ ( CONVERSÕES )$$
+
+km_para_ue = 2.0/lado_regiao_km  # faz a conversão da largura real (km) para largura em unidades de espaço do modelo (ue)
+s_para_ut = intervalo_observacao_s  # faz a conversão do tempo em segundos (s) para o tempo em unidades de tempo (ue)
+h_para_ut = 3600*s_para_ut  # faz a conversão do tempo de simulação em segundos (s) para unidades de tempo (ue)
+
+# ----------------------------------------------------------------------------------------------------------------
+# $$ ( NORMALIZAÇÕES )$$
+# obs1: por definição - lado da região = 2ue
+
+velocidade_media = (velocidade_media_km_h*km_para_ue)/h_para_ut  # faz a normalização da velocidade do usuario para a região do modelo
+alcance_antena = alcance_antena_km*km_para_ue  # faz a normalização para o alcance da antena na região do modelo
+alcance_d2d = alcance_d2d_km*km_para_ue  # faz a normalização para o alcance do d2d na região do modelo
+densidade_antenas = densidade_antenas_por_km2/km_para_ue**2  # faz a normalização da densidade de antenas na área do modelo
+densidade_usuarios = densidade_usuarios_por_km2/km_para_ue**2  # faz a normalização da densidade de usuários na área do modelo
+
+# obs2: por definição - intervalo de observação = 1.u.t
+
+tempo_simulacao = tempo_simulacao_s*s_para_ut
+# ----------------------------------------------------------------------------------------------------------------
+# Código principal (MAIN)
+iter = 0
+maxIter = 10
+sum_Users_CEL_D2D_tempo = []
+sum_Users_CEL_tempo = []
+Users=[]
+
+while (iter < maxIter):  # Define quantas simulações farei no meu código.
+    import numpy
+
+    eNodeB = genPPP(densidade_antenas)  # antenas # Gera as antenas a partir do Point to Process Poisson
+    UE = genPPP(densidade_usuarios)  # users # vetor a ser percorrido no passo do movimento browniano
+
+    Medidas_Users_CEL_D2D = []  # inicializa um vetor para colocar as medidas de interesse
+    Medidas_Users_CEL = []  # inicializa um vetor para colocar as medidas geradas a cada tempo t dos Users Celulares
+    Medidas_Users_D2D = []  # inicializa um vetor para colocar as medidas geradas a cada tempo t dos Users D2D
+    Medidas_Users_OFF = []  # inicializa um vetor para colocar as medidas geradas a cada tempo t dos Users OFF
+
+    for t in range(int(tempo_simulacao)):  # loop usado para varrer a cada instante t as métricas.
+        for user in UE:
+            moveBrownian(user,intervalo_observacao_s,velocidade_media)  # atualiza a posição de um usuário no instante de tempo t.
+
+        Grafo_Global = genConnectGraph(eNodeB,UE,alcance_antena,alcance_d2d) # gera o grafo de relações
+
+        metricas_no_tempo = analyseConnectGraph(Grafo_Global, eNodeB, UE) # faz a análise do grafo criado e tira métricas de contagem
+
+        Medidas_Users_CEL_D2D.append(metricas_no_tempo[0]+metricas_no_tempo[1])  # cria uma lista com todas as medidas de CEL+D2D a cada t.
+        Medidas_Users_CEL.append(metricas_no_tempo[0])  # cria uma lista com todas as medidas de CEL a cada t.
+        Medidas_Users_D2D.append(metricas_no_tempo[1])  # cria uma lista com todas as medidas de D2D a cada t.
+        Medidas_Users_OFF.append(metricas_no_tempo[2])  # cria uma lista com todas as medidas de OFF a cada t.
+
+        print("QTD Users: ", sum(metricas_no_tempo), " | QTD Users Cel: ", metricas_no_tempo[0], " | QTD Users D2D: ", metricas_no_tempo[1]," | QTD Users OFF: ", metricas_no_tempo[2], " | Tempo = ", t)
+
+    # atualiza uma main lista que tem os valores (normalizados pela quantidade de usuários naquela rodada) CEL+ D2D a cada t.
+    sum_Users_CEL_D2D_tempo.append(numpy.array(Medidas_Users_CEL_D2D,dtype=float)/sum(metricas_no_tempo))
+    # atualiza uma main lista que tem os valores (normalizados pela quantidade de usuários naquela rodada) CEL a cada t.
+    sum_Users_CEL_tempo.append(numpy.array(Medidas_Users_CEL,dtype=float)/sum(metricas_no_tempo))
+
+    Users.append(sum(metricas_no_tempo))
+
+    mediaN_users_CEL_D2D = numpy.mean(Medidas_Users_CEL_D2D)/sum(metricas_no_tempo)
+    mediaN_users_CEL = numpy.mean(Medidas_Users_CEL)/sum(metricas_no_tempo)
+    mediaN_users_D2D = numpy.mean(Medidas_Users_D2D)/sum(metricas_no_tempo)
+    mediaN_users_OFF = numpy.mean(Medidas_Users_OFF)/sum(metricas_no_tempo)
+
+# Criação de rotina para gerar os outputs das medias
+
+# 0 - Medidas para Usuários CEL + D2D
+
+    arquivo = open('C:\mval_1.0b\CEL_D2D_0.7.txt', 'r')  # Alterar o diretório quando for em máquinas diferentes
+    conteudo = arquivo.readlines()
+    conteudo.append(str(mediaN_users_CEL_D2D))
+    conteudo.append("\n")
+    arquivo = open('C:\mval_1.0b\CEL_D2D_0.7.txt', 'w')  # Alterar o diretório quando for em máquinas diferentes
+    arquivo.writelines(conteudo)
+    arquivo.close()
+
+# 1 - Medidas para Usuários na cobertura Celular
+
+    arquivo = open('C:\mval_1.0b\CEL_0.7.txt', 'r')  # Alterar o diretório quando for em máquinas diferentes
+    conteudo = arquivo.readlines()
+    conteudo.append(str(mediaN_users_CEL))
+    conteudo.append("\n")
+    arquivo = open('C:\mval_1.0b\CEL_0.7.txt', 'w')  # Alterar o diretório quando for em máquinas diferentes
+    arquivo.writelines(conteudo)
+    arquivo.close()
+    iter += 1
+
+# criação da rotina para gerar a média no tempo
+
+import numpy
+
+media_tempo_Users_CEL_D2D = numpy.sum(sum_Users_CEL_D2D_tempo,axis=0)/tempo_simulacao_s
+media_tempo_Users_CEL = numpy.sum(sum_Users_CEL_tempo,axis=0)/tempo_simulacao_s
+
+print(sum_Users_CEL_D2D_tempo)
+print(sum_Users_CEL_tempo)
+
+print(media_tempo_Users_CEL_D2D)
+print(media_tempo_Users_CEL)
+
+arquivo = open('C:\mval_1.0b\med_0.7.txt', 'r')  # Alterar o diretório quando for em máquinas diferentes
+conteudo = arquivo.readlines()
+for i in range(tempo_simulacao_s):
+    conteudo.append(str(media_tempo_Users_CEL_D2D[i]))
+    conteudo.append("\n")
+    arquivo = open('C:\mval_1.0b\med_0.7.txt', 'w')  # Alterar o diretório quando for em máquinas diferentes
+    arquivo.writelines(conteudo)
+    arquivo.close()
+
